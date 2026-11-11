@@ -83,7 +83,7 @@
       position: relative; width: 100%; aspect-ratio: 1; border-radius: 50%; overflow: hidden;
       background:
         radial-gradient(circle at center, #fff 0%, transparent 72%),
-        conic-gradient(from -90deg, hsl(0 100% 50%), hsl(30 100% 50%), hsl(60 100% 50%),
+        conic-gradient(from 90deg, hsl(0 100% 50%), hsl(30 100% 50%), hsl(60 100% 50%),
           hsl(90 100% 50%), hsl(120 100% 50%), hsl(150 100% 50%), hsl(180 100% 50%),
           hsl(210 100% 50%), hsl(240 100% 50%), hsl(270 100% 50%), hsl(300 100% 50%),
           hsl(330 100% 50%), hsl(360 100% 50%));
@@ -192,6 +192,16 @@
     }
     .palette-note { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 
+    .color-editor { margin-top: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #fbfaf7; }
+    .color-editor[hidden] { display: none; }
+    .color-editor-heading { margin: 0 0 13px; font-size: 13px; letter-spacing: -.02em; }
+    .channel-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 14px 18px; }
+    .channel-control { min-width: 0; }
+    .channel-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
+    .channel-label-row label { font-size: 11px; font-weight: 700; }
+    .channel-number { width: 66px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: white; font-size: 11px; }
+    .channel-slider { display: block; width: 100%; margin: 0; accent-color: var(--accent); cursor: pointer; }
+
     .harmony-section { margin-top: 24px; padding: 22px 24px; border: 1px solid var(--line); border-radius: 18px; background: #fbfaf7; }
     .harmony-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 15px; }
     .harmony-title h2 { font-size: 15px; }
@@ -297,6 +307,46 @@
           </div>
         </div>
         <div class="swatches" id="swatches" aria-label="Palette colors"></div>
+        <section class="color-editor" id="color-editor" aria-labelledby="color-editor-title" hidden>
+          <h3 class="color-editor-heading" id="color-editor-title">Edit selected color</h3>
+          <div class="channel-grid">
+            <div class="channel-control">
+              <div class="channel-label-row">
+                <label for="red-slider">Red</label>
+                <input class="channel-number" id="red-number" type="number" min="0" max="255" step="1" value="0" aria-label="Red value">
+              </div>
+              <input class="channel-slider" id="red-slider" type="range" min="0" max="255" step="1" value="0" aria-label="Red slider">
+            </div>
+            <div class="channel-control">
+              <div class="channel-label-row">
+                <label for="green-slider">Green</label>
+                <input class="channel-number" id="green-number" type="number" min="0" max="255" step="1" value="0" aria-label="Green value">
+              </div>
+              <input class="channel-slider" id="green-slider" type="range" min="0" max="255" step="1" value="0" aria-label="Green slider">
+            </div>
+            <div class="channel-control">
+              <div class="channel-label-row">
+                <label for="blue-slider">Blue</label>
+                <input class="channel-number" id="blue-number" type="number" min="0" max="255" step="1" value="0" aria-label="Blue value">
+              </div>
+              <input class="channel-slider" id="blue-slider" type="range" min="0" max="255" step="1" value="0" aria-label="Blue slider">
+            </div>
+            <div class="channel-control">
+              <div class="channel-label-row">
+                <label for="saturation-slider">Saturation (%)</label>
+                <input class="channel-number" id="saturation-number" type="number" min="0" max="100" step="0.1" value="0" aria-label="Saturation percentage">
+              </div>
+              <input class="channel-slider" id="saturation-slider" type="range" min="0" max="100" step="0.1" value="0" aria-label="Saturation slider">
+            </div>
+            <div class="channel-control">
+              <div class="channel-label-row">
+                <label for="value-slider">Value (%)</label>
+                <input class="channel-number" id="value-number" type="number" min="0" max="100" step="0.1" value="0" aria-label="Value percentage">
+              </div>
+              <input class="channel-slider" id="value-slider" type="range" min="0" max="100" step="0.1" value="0" aria-label="Value slider">
+            </div>
+          </div>
+        </section>
         <div class="palette-footer">
           <p class="palette-note">Choose a swatch to edit it, or copy its hex value.</p>
           <button type="button" class="button" id="copy-palette">Copy all hex</button>
@@ -331,6 +381,8 @@
       const wheel = document.getElementById("wheel");
       const swatches = document.getElementById("swatches");
       const hexInput = document.getElementById("hex-input");
+      const colorEditor = document.getElementById("color-editor");
+      const colorEditorTitle = document.getElementById("color-editor-title");
       const selectedName = document.getElementById("selected-name");
       const activeHarmonyLabel = document.getElementById("active-harmony");
       const harmonyList = document.getElementById("harmony-list");
@@ -343,6 +395,7 @@
       let harmony = "Complementary";
       let editMode = "independent";
       let draggingIndex = null;
+      let colorEditorOpen = false;
       let colors = [];
 
       const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -388,6 +441,51 @@
           else h = 60 * ((r - g) / delta + 4);
         }
         return { hue: normalizeHue(h), saturation: s, lightness: l };
+      }
+
+      function hexToRgb(hex) {
+        return hex.slice(1).match(/.{2}/g).map(value => parseInt(value, 16));
+      }
+
+      function rgbToHex(red, green, blue) {
+        return "#" + [red, green, blue]
+          .map(value => clamp(Math.round(value), 0, 255).toString(16).padStart(2, "0"))
+          .join("").toUpperCase();
+      }
+
+      function hexToHsv(hex) {
+        const [red, green, blue] = hexToRgb(hex).map(value => value / 255);
+        const max = Math.max(red, green, blue);
+        const min = Math.min(red, green, blue);
+        const delta = max - min;
+        let hue = 0;
+        if (delta !== 0) {
+          if (max === red) hue = 60 * (((green - blue) / delta) % 6);
+          else if (max === green) hue = 60 * ((blue - red) / delta + 2);
+          else hue = 60 * ((red - green) / delta + 4);
+        }
+        return {
+          hue: normalizeHue(hue),
+          saturation: max === 0 ? 0 : delta / max,
+          value: max
+        };
+      }
+
+      function hsvToHex(hue, saturation, value) {
+        const h = normalizeHue(hue) / 60;
+        const s = clamp(saturation, 0, 1);
+        const v = clamp(value, 0, 1);
+        const chroma = v * s;
+        const x = chroma * (1 - Math.abs((h % 2) - 1));
+        const m = v - chroma;
+        let channels;
+        if (h < 1) channels = [chroma, x, 0];
+        else if (h < 2) channels = [x, chroma, 0];
+        else if (h < 3) channels = [0, chroma, x];
+        else if (h < 4) channels = [0, x, chroma];
+        else if (h < 5) channels = [x, 0, chroma];
+        else channels = [chroma, 0, x];
+        return rgbToHex(...channels.map(channel => (channel + m) * 255));
       }
 
       function colorAt(hue, radius) {
@@ -448,12 +546,12 @@
               copyText(color.hex, `${color.hex} copied`);
               return;
             }
-            selectColor(index);
+            selectColor(index, true);
           });
           card.addEventListener("keydown", event => {
             if ((event.key === "Enter" || event.key === " ") && event.target === card) {
               event.preventDefault();
-              selectColor(index);
+              selectColor(index, true);
             }
           });
           swatches.appendChild(card);
@@ -461,6 +559,21 @@
 
         selectedName.textContent = names[activeIndex];
         hexInput.value = colors[activeIndex].hex;
+        colorEditor.hidden = !colorEditorOpen;
+        colorEditorTitle.textContent = `Edit ${names[activeIndex]}`;
+        const [red, green, blue] = hexToRgb(colors[activeIndex].hex);
+        const hsv = hexToHsv(colors[activeIndex].hex);
+        [
+          ["red", red],
+          ["green", green],
+          ["blue", blue],
+          ["saturation", hsv.saturation * 100],
+          ["value", hsv.value * 100]
+        ].forEach(([channel, value]) => {
+          const formattedValue = Number(value.toFixed(1));
+          document.getElementById(`${channel}-slider`).value = formattedValue;
+          document.getElementById(`${channel}-number`).value = formattedValue;
+        });
         activeHarmonyLabel.textContent = harmony;
         analogousControls.hidden = harmony !== "Analogous";
         analogousAngleValue.value = `${analogousAngle.value}°`;
@@ -479,8 +592,9 @@
         });
       }
 
-      function selectColor(index) {
+      function selectColor(index, openEditor = false) {
         activeIndex = index;
+        if (openEditor) colorEditorOpen = true;
         render();
       }
 
@@ -505,6 +619,36 @@
         const radius = clamp(Math.hypot(x, y) / maxRadius, 0, 1);
         const hue = normalizeHue(Math.atan2(y, x) * 180 / Math.PI);
         updateColor(index, hue, radius);
+      }
+
+      function setColorFromHex(value) {
+        hexInput.removeAttribute("aria-invalid");
+        status.textContent = "";
+        const hsl = hexToHsl(value);
+        if (editMode === "together") {
+          const hueShift = ((hsl.hue - colors[activeIndex].hue + 540) % 360) - 180;
+          const radiusShift = hsl.saturation - colors[activeIndex].radius;
+          colors = colors.map(color => colorAt(color.hue + hueShift, color.radius + radiusShift));
+        } else {
+          harmony = "Custom";
+        }
+        colors[activeIndex] = { hue: hsl.hue, radius: hsl.saturation, hex: value.toUpperCase() };
+        render();
+      }
+
+      function updateColorChannel(channel, value) {
+        const hex = colors[activeIndex].hex;
+        if (channel === "red" || channel === "green" || channel === "blue") {
+          const rgb = hexToRgb(hex);
+          const index = { red: 0, green: 1, blue: 2 }[channel];
+          rgb[index] = value;
+          setColorFromHex(rgbToHex(...rgb));
+          return;
+        }
+        const hsv = hexToHsv(hex);
+        const saturation = channel === "saturation" ? value / 100 : hsv.saturation;
+        const brightness = channel === "value" ? value / 100 : hsv.value;
+        setColorFromHex(hsvToHex(hsv.hue, saturation, brightness));
       }
 
       function analogousPattern(spread) {
@@ -546,7 +690,18 @@
         analogousAngleValue.value = `${analogousAngle.value}°`;
         analogousAngleValue.textContent = `${analogousAngle.value}°`;
         if (harmony === "Analogous") {
-          applyHarmony("Analogous", colors[2].hue);
+          const centerHue = colors[2].hue;
+          colors = analogousPattern(Number(analogousAngle.value)).map(([offset], index) => {
+            if (index === 2) return colors[2];
+            const hue = centerHue + offset;
+            const hsl = hexToHsl(colors[index].hex);
+            return {
+              hue: normalizeHue(hue),
+              radius: hsl.saturation,
+              hex: hslToHex(hue, hsl.saturation, hsl.lightness)
+            };
+          });
+          render();
         }
       });
 
@@ -569,18 +724,20 @@
           status.textContent = "Enter a valid 6-digit hex value, such as #AABBCC.";
           return;
         }
-        hexInput.removeAttribute("aria-invalid");
-        status.textContent = "";
-        const hsl = hexToHsl(value);
-        if (editMode === "together") {
-          const hueShift = ((hsl.hue - colors[activeIndex].hue + 540) % 360) - 180;
-          const radiusShift = hsl.saturation - colors[activeIndex].radius;
-          colors = colors.map(color => colorAt(color.hue + hueShift, color.radius + radiusShift));
-        } else {
-          harmony = "Custom";
-        }
-        colors[activeIndex] = { hue: hsl.hue, radius: hsl.saturation, hex: value.toUpperCase() };
-        render();
+        setColorFromHex(value);
+      });
+
+      document.querySelectorAll(".channel-control").forEach(control => {
+        const slider = control.querySelector('input[type="range"]');
+        const number = control.querySelector('input[type="number"]');
+        const channel = slider.id.replace("-slider", "");
+        const updateFromInput = input => {
+          if (!Number.isFinite(input.valueAsNumber)) return;
+          const value = clamp(input.valueAsNumber, Number(input.min), Number(input.max));
+          updateColorChannel(channel, value);
+        };
+        slider.addEventListener("input", () => updateFromInput(slider));
+        number.addEventListener("input", () => updateFromInput(number));
       });
 
       document.getElementById("reset-button").addEventListener("click", () => {
